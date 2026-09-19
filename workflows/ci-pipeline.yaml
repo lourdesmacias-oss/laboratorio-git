@@ -1,0 +1,48 @@
+name: CI Completo
+
+# Requisitos 1 y 2: Disparadores en push y pull_request a main e ignorar docs/
+on:
+  push:
+    branches: [ main ]
+    paths-ignore: [ 'docs/**' ]
+  pull_request:
+    branches: [ main ]
+    paths-ignore: [ 'docs/**' ]
+
+jobs:
+  # Requisito 3: Job "calidad" que falla con advertencias
+  calidad:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm ci
+      - run: npx eslint . --max-warnings 0
+
+  # Requisito 4: Job "pruebas" con matriz de 2 versiones
+  pruebas:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [18, 20]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm ci
+      - run: npm test -- --coverage
+
+  # Requisito 5 y 6: Job "empaquetar" dependiente de los anteriores y sube artefactos
+  empaquetar:
+    needs: [calidad, pruebas]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm ci
+      - run: npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-y-cobertura
+          path: |
+            dist/
+            coverage/
