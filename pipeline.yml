@@ -1,0 +1,89 @@
+name: Pipeline CI/CD Personalizado
+
+# Requisito 1 y 2: Triggers en push/pull_request a main e ignorar la carpeta docs/
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - 'docs/**'
+  pull_request:
+    branches:
+      - main
+    paths-ignore:
+      - 'docs/**'
+
+jobs:
+  # Requisito 3: Job "calidad" (ejecuta linter y falla con advertencias)
+  calidad:
+    name: Control de Calidad
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar el código fuente
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Ejecutar Linter (falla si hay advertencias)
+        # La bandera --max-warnings 0 hace que el linter falle si encuentra cualquier warning
+        run: npx eslint . --max-warnings 0
+
+  # Requisito 4: Job "pruebas" (matriz con dos versiones de Node.js)
+  pruebas:
+    name: Pruebas Unitarias (${{ matrix.node-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: ['18', '20']
+    steps:
+      - name: Descargar el código fuente
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js en versión ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Ejecutar Pruebas y generar cobertura
+        run: npm test -- --coverage
+
+  # Requisito 5: Job "empaquetar" (depende de "calidad" y "pruebas")
+  empaquetar:
+    name: Empaquetar y Publicar
+    runs-on: ubuntu-latest
+    needs: [calidad, pruebas] # Dependencia de los dos jobs anteriores
+    steps:
+      - name: Descargar el código fuente
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Instalar dependencias y empaquetar
+        run: |
+          npm ci
+          npm run build
+
+      # Requisito 6: Publicar el artefacto y el reporte de cobertura como salida
+      - name: Publicar Artefacto de Compilación
+        uses: actions/upload-artifact@v4
+        with:
+          name: paquete-build
+          path: dist/ # O la carpeta donde compile tu proyecto (ej: build/)
+
+      - name: Publicar Reporte de Cobertura
+        uses: actions/upload-artifact@v4
+        with:
+          name: reporte-cobertura
+          path: coverage/
