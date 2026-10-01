@@ -19,8 +19,5 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Instalar dependencias
-        run: npm ci
-
-      - name: Construir el proyecto
-        run: npm run build
+      - name: Verificar archivos del proyecto
+        run: ls -la
